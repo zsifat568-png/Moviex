@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { MovieItem, MovieActor } from '../types';
 import { fetchCastAndDetailsForMovie, getActorAvatarFallback } from '../utils/tmdbService';
+import { sendTelegramMessageData, extractTelegramMessageId } from '../utils/telegramService';
 import { AdminPosterModal } from './AdminPosterModal';
 
 interface MovieDetailsModalProps {
@@ -149,20 +150,16 @@ export const MovieDetailsModal: React.FC<MovieDetailsModalProps> = ({
   const activePoster = allPosters[currentPosterIndex] || movie.posterUrl || movie.backdropUrl;
 
   const handleTelegramDownload = () => {
-    // 1. Check if movie has specific telegram stream link
-    const tgLink = movie.streamLinks?.find(l => l.type === 'telegram')?.url || 
-      movie.streamLinks?.[0]?.url;
+    // 1. Get Message ID or Telegram stream link
+    const tgStream = movie.streamLinks?.find(l => l.type === 'telegram');
+    const rawIdOrUrl = movie.messageId || tgStream?.messageId || tgStream?.url || movie.streamLinks?.[0]?.url || '';
+    const messageId = extractTelegramMessageId(rawIdOrUrl) || rawIdOrUrl || movie.id;
 
-    // 2. Prepare Telegram deep-link format (e.g. https://t.me/YourMovieBot?start=movie_<id>)
-    const targetUrl = tgLink || `https://t.me/share/url?url=${encodeURIComponent(`মুভি: ${movie.titleBn} (${movie.releaseYear})`)}&text=${encodeURIComponent(`মুভিটি ডাউনলোড ও দেখার জন্য লিংক:`)}`;
+    // 2. Fallback deep link if opened outside Telegram WebApp
+    const fallbackUrl = (rawIdOrUrl.startsWith('http') ? rawIdOrUrl : `https://t.me/share/url?url=${encodeURIComponent(`মুভি: ${movie.titleBn} (${movie.releaseYear})`)}&text=${encodeURIComponent(`মুভি মেসেজ আইডি: ${messageId}`)}`);
 
-    // 3. Open in Telegram WebApp or standard browser window
-    const tgWebApp = (window as any).Telegram?.WebApp;
-    if (tgWebApp && typeof tgWebApp.openTelegramLink === 'function' && targetUrl.startsWith('https://t.me/')) {
-      tgWebApp.openTelegramLink(targetUrl);
-    } else {
-      window.open(targetUrl, '_blank');
-    }
+    // 3. Send Message ID to bot via Telegram.WebApp.sendData()
+    sendTelegramMessageData(messageId, fallbackUrl);
   };
 
   return (

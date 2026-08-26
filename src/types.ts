@@ -14,6 +14,7 @@ export interface StreamDownloadLink {
   serverName: string;
   url: string;
   type: 'direct' | 'drive' | 'telegram' | 'stream';
+  messageId?: string;
 }
 
 export interface MovieActor {
@@ -54,6 +55,7 @@ export interface MovieItem {
     current: number;
     target: number;
   };
+  messageId?: string;
   streamLinks: StreamDownloadLink[];
   comments: CommentItem[];
 }

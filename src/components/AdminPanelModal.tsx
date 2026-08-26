@@ -13,6 +13,7 @@ import {
   mapTMDBToCategory, 
   getActorAvatarFallback 
 } from '../utils/tmdbService';
+import { extractTelegramMessageId } from '../utils/telegramService';
 
 interface AdminPanelModalProps {
   isOpen: boolean;
@@ -249,7 +250,9 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     ].filter(Boolean)));
     setAdditionalPosters(existingPosters);
 
-    const tgLink = movie.streamLinks?.find(l => l.type === 'telegram')?.url || '';
+    const tgLink = movie.messageId || 
+      movie.streamLinks?.find(l => l.type === 'telegram')?.messageId || 
+      movie.streamLinks?.find(l => l.type === 'telegram')?.url || '';
     setTelegramUrl(tgLink);
 
     setCurrentPage('upload_movie');
@@ -281,6 +284,10 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
       ...additionalPosters
     ].filter(Boolean)));
 
+    const rawTgInput = telegramUrl.trim();
+    const extractedMsgId = extractTelegramMessageId(rawTgInput);
+    const finalMsgId = extractedMsgId || rawTgInput;
+
     const moviePayload: MovieItem = {
       id: editingMovieId || `custom-movie-${Date.now()}`,
       titleBn: titleBn.trim(),
@@ -307,13 +314,15 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
         current: 650,
         target: 1000
       },
-      streamLinks: telegramUrl.trim() ? [
+      messageId: finalMsgId || undefined,
+      streamLinks: rawTgInput ? [
         {
           serverName: 'Telegram Bot Fast Download',
           quality: '1080p Full HD',
           size: '1.2 GB',
           type: 'telegram',
-          url: telegramUrl.trim()
+          messageId: finalMsgId,
+          url: rawTgInput.startsWith('http') ? rawTgInput : `https://t.me/c/movie/${finalMsgId}`
         }
       ] : [
         {
@@ -1027,20 +1036,25 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                   )}
                 </div>
 
-                {/* Telegram Bot Link */}
+                {/* Telegram Bot Link / Message ID */}
                 <div className="p-4 rounded-3xl bg-sky-950/30 border border-sky-500/40 space-y-2">
-                  <label className="text-xs font-bold text-sky-300 flex items-center gap-1.5">
-                    <span>✈️ টেলিগ্রাম বট মুভি ডাউনলোড লিংক (Telegram Mini App)</span>
+                  <label className="text-xs font-bold text-sky-300 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <span>✈️ চ্যানেলের Message ID (যেমন: 2) বা টেলিগ্রাম লিংক</span>
+                    </span>
+                    <span className="text-[10px] text-sky-300/80 font-normal">
+                      (Telegram.WebApp.sendData)
+                    </span>
                   </label>
                   <input
-                    type="url"
+                    type="text"
                     value={telegramUrl}
                     onChange={(e) => setTelegramUrl(e.target.value)}
-                    placeholder="https://t.me/YourMovieBot?start=movie_123"
+                    placeholder="যেমন: 2 অথবা 145 (অথবা https://t.me/...)"
                     className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-950 border border-sky-500/30 text-xs text-white focus:outline-none focus:border-sky-400 font-mono"
                   />
                   <p className="text-[10px] text-sky-200/70">
-                    ইউজার যখন মুভি পেজে ডাউনলোড বাটনে ক্লিক করবে, সরাসরি আপনার বটের এই লিংকে গিয়ে মুভি ফাইল পেয়ে যাবে।
+                    চ্যানেলের Message ID (যেমন: <b>2</b>) দিন। ইউজার ডাউনলোড বা Watch Now বাটনে ক্লিক করলে প্রাইভেট চ্যানেলে রিডাইরেক্ট না হয়ে, টেলিগ্রামের <b>Telegram.WebApp.sendData()</b> দিয়ে এই Message ID সরাসরি আপনার বটের ইনবক্সে চলে যাবে।
                   </p>
                 </div>
 
