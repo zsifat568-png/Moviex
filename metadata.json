@@ -1,0 +1,8 @@
+{
+  "name": "Remix Moviee Link - Movie \u0026 Smart Tools Web App",
+  "description": "A modern glassmorphism movie and series portal featuring Bangla \u0026 International releases, smart tools suite, favorites, search, upcoming countdowns, and movie request system.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
