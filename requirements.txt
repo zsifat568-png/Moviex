@@ -1,0 +1,2 @@
+telebot==4.15.0
+aiohttp==3.9.3
