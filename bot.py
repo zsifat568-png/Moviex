@@ -18,12 +18,19 @@ async def start_handler(message: types.Message):
 async def handle_web_app_data(message: types.Message):
     user_id = message.from_user.id
     try:
-        movie_message_id = int(message.web_app_data.data)
-        await bot.copy_message(
-            chat_id=user_id,
-            from_chat_id=CHANNEL_ID,
-            message_id=movie_message_id
-        )
+        raw_data = message.web_app_data.data.strip()
+        
+        # যদি অ্যাডমিনের দেওয়া টেক্সটটি একটি Message ID (যেমন: 2, 45, 120) হয়
+        if raw_data.isdigit():
+            movie_message_id = int(raw_data)
+            await bot.copy_message(
+                chat_id=user_id,
+                from_chat_id=CHANNEL_ID,
+                message_id=movie_message_id
+            )
+        else:
+            # অন্য কোনো টেক্সট বা লিংক হলে
+            await message.answer(f"মুভি ডেটা: {raw_data}")
     except Exception as e:
         await message.answer("দুঃখিত, মুভিটি পাঠাতে সমস্যা হয়েছে। আবার চেষ্টা করুন।")
 
@@ -45,5 +52,5 @@ async def main():
     # একসাথে টেলিগ্রাম বট এবং ওয়েব সার্ভার রান করা
     await asyncio.gather(web_server(), dp.start_polling(bot))
 
-if name == "__main__":
+if __name__ == "__main__":
     asyncio.run(main())

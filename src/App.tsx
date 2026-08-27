@@ -67,6 +67,21 @@ export default function App() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('all');
 
+  // Initialize Telegram WebApp
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const tg = (window as any).Telegram?.WebApp;
+      if (tg) {
+        try {
+          tg.ready();
+          tg.expand();
+        } catch (e) {
+          // ignore
+        }
+      }
+    }
+  }, []);
+
   // Persisted state
   const [movies, setMovies] = useState<MovieItem[]>(() => {
     const cached = localStorage.getItem(STORAGE_KEYS.MOVIES);
@@ -697,6 +712,7 @@ export default function App() {
           onUpdateMovie={(updated) => {
             setMovies(prev => prev.map(m => m.id === updated.id ? updated : m));
             saveMovieToFirebase(updated);
+            setSelectedMovie(prev => prev && prev.id === updated.id ? updated : prev);
           }}
           onDeleteMovie={(movieId) => {
             setMovies(prev => prev.filter(m => m.id !== movieId));

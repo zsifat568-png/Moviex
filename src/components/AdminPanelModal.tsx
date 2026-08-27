@@ -252,6 +252,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
 
     const tgLink = movie.messageId || 
       movie.streamLinks?.find(l => l.type === 'telegram')?.messageId || 
+      extractTelegramMessageId(movie.streamLinks?.find(l => l.type === 'telegram')?.url) || 
       movie.streamLinks?.find(l => l.type === 'telegram')?.url || '';
     setTelegramUrl(tgLink);
 
@@ -305,32 +306,24 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
       backdropUrl: backdropUrl.trim() || posterUrl.trim(),
       synopsisBn: overview.trim() || `${titleBn} মুভিটি এখন চমৎকার প্রিন্টে ডাউনলোড ও দেখার জন্য উপলব্ধ।`,
       cast: castNames.length > 0 ? castNames : ['Lead Actor', 'Co-Star'],
-      actors: actorsList.length > 0 ? actorsList : undefined,
+      actors: actorsList.length > 0 ? actorsList : [],
       director: director.trim() || 'Famous Director',
-      isTrending,
-      isNew,
+      isTrending: Boolean(isTrending),
+      isNew: Boolean(isNew),
       additionalPosters: compiledPosters,
       targetLikes: {
         current: 650,
         target: 1000
       },
-      messageId: finalMsgId || undefined,
-      streamLinks: rawTgInput ? [
+      messageId: finalMsgId || '',
+      streamLinks: [
         {
           serverName: 'Telegram Bot Fast Download',
           quality: '1080p Full HD',
           size: '1.2 GB',
           type: 'telegram',
-          messageId: finalMsgId,
-          url: rawTgInput.startsWith('http') ? rawTgInput : `https://t.me/c/movie/${finalMsgId}`
-        }
-      ] : [
-        {
-          serverName: 'Direct Fast Server',
-          quality: '720p HD',
-          size: '850 MB',
-          type: 'direct',
-          url: '#'
+          messageId: finalMsgId || '2',
+          url: rawTgInput.startsWith('http') ? rawTgInput : `https://t.me/c/movie/${finalMsgId || '2'}`
         }
       ],
       comments: []

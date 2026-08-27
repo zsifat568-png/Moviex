@@ -4,11 +4,12 @@ import {
   ArrowLeft, Bookmark, Play, 
   Film, Tv, Star, Clock, Sparkles, Clapperboard,
   User, Users, Loader2, Download, HardDrive, Send, 
-  ChevronLeft, ChevronRight, Image as ImageIcon, Plus, Flame
+  ChevronLeft, ChevronRight, Image as ImageIcon, Plus, Flame,
+  CheckCircle2, X, MessageSquareQuote, Check
 } from 'lucide-react';
 import { MovieItem, MovieActor } from '../types';
 import { fetchCastAndDetailsForMovie, getActorAvatarFallback } from '../utils/tmdbService';
-import { sendTelegramMessageData, extractTelegramMessageId } from '../utils/telegramService';
+import { sendTelegramMessageData, extractTelegramMessageId, closeTelegramWebApp } from '../utils/telegramService';
 import { AdminPosterModal } from './AdminPosterModal';
 
 interface MovieDetailsModalProps {
@@ -56,6 +57,7 @@ export const MovieDetailsModal: React.FC<MovieDetailsModalProps> = ({
   const [isPaused, setIsPaused] = useState(false);
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
+  const [showDownloadPopup, setShowDownloadPopup] = useState(false);
 
   // Combine unique posters list
   const allPosters = Array.from(
@@ -155,11 +157,11 @@ export const MovieDetailsModal: React.FC<MovieDetailsModalProps> = ({
     const rawIdOrUrl = movie.messageId || tgStream?.messageId || tgStream?.url || movie.streamLinks?.[0]?.url || '';
     const messageId = extractTelegramMessageId(rawIdOrUrl) || rawIdOrUrl || movie.id;
 
-    // 2. Fallback deep link if opened outside Telegram WebApp
-    const fallbackUrl = (rawIdOrUrl.startsWith('http') ? rawIdOrUrl : `https://t.me/share/url?url=${encodeURIComponent(`মুভি: ${movie.titleBn} (${movie.releaseYear})`)}&text=${encodeURIComponent(`মুভি মেসেজ আইডি: ${messageId}`)}`);
+    // 2. Direct send to Telegram bot inbox via Telegram.WebApp.sendData()
+    sendTelegramMessageData(messageId);
 
-    // 3. Send Message ID to bot via Telegram.WebApp.sendData()
-    sendTelegramMessageData(messageId, fallbackUrl);
+    // 3. Show stylish glass notification popup
+    setShowDownloadPopup(true);
   };
 
   return (
@@ -549,6 +551,88 @@ export const MovieDetailsModal: React.FC<MovieDetailsModalProps> = ({
         currentPosters={allPosters}
         onSavePosters={handleSavePosters}
       />
+
+      {/* 🌟 Stylish Glass-Effect Download / Bot Inbox Popup Modal */}
+      <AnimatePresence>
+        {showDownloadPopup && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            {/* Backdrop with strong blur */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowDownloadPopup(false)}
+              className="absolute inset-0 bg-slate-950/80 backdrop-blur-md"
+            />
+
+            {/* Glass Card */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 350 }}
+              className="relative w-full max-w-sm sm:max-w-md bg-slate-900/90 border border-sky-400/30 rounded-3xl p-6 sm:p-7 shadow-2xl backdrop-blur-2xl text-center space-y-5 ring-1 ring-white/10 overflow-hidden"
+            >
+              {/* Background ambient lighting */}
+              <div className="absolute -top-12 left-1/2 -translate-x-1/2 w-40 h-40 bg-sky-500/20 rounded-full blur-3xl pointer-events-none" />
+              <div className="absolute -bottom-10 right-0 w-32 h-32 bg-blue-600/15 rounded-full blur-2xl pointer-events-none" />
+
+              {/* Close Icon in corner */}
+              <button
+                onClick={() => setShowDownloadPopup(false)}
+                className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-white/20 text-slate-400 hover:text-white transition-all active:scale-95"
+                title="বন্ধ করুন"
+              >
+                <X className="w-4 h-4" />
+              </button>
+
+              {/* Animated Icon Badge */}
+              <div className="relative mx-auto w-16 h-16 rounded-2xl bg-gradient-to-tr from-sky-600 to-blue-500 flex items-center justify-center text-white shadow-lg shadow-sky-500/30 ring-4 ring-sky-400/20 animate-bounce duration-1000">
+                <Send className="w-8 h-8 -rotate-12 translate-x-0.5 -translate-y-0.5" />
+              </div>
+
+              {/* Header Title */}
+              <div className="space-y-1">
+                <h3 className="text-lg sm:text-xl font-black text-white tracking-tight">
+                  মুভি পাঠানো সম্পন্ন হয়েছে! 🚀
+                </h3>
+                <p className="text-xs text-sky-300/90 font-medium">
+                  {movie.titleBn} ({movie.releaseYear})
+                </p>
+              </div>
+
+              {/* Crystal Clear Readable Message Box */}
+              <div className="bg-slate-950/60 border border-sky-400/20 rounded-2xl p-4 sm:p-4.5 shadow-inner">
+                <p className="text-sm sm:text-base text-slate-100 leading-relaxed font-semibold">
+                  আপনার মুভিটি আপনার বট ইনবক্সে পাঠিয়ে দেওয়া হয়েছে। অনুগ্রহ করে মিনি অ্যাপটি ক্লোজ করুন এবং আপনার বট ইনবক্স চেক করুন।
+                </p>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="space-y-2.5 pt-1">
+                <button
+                  id="close-telegram-webapp-btn"
+                  onClick={() => {
+                    closeTelegramWebApp();
+                    setShowDownloadPopup(false);
+                  }}
+                  className="w-full py-3 px-5 rounded-2xl bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 active:scale-[0.98] text-white font-bold text-sm tracking-wide shadow-lg shadow-sky-600/30 flex items-center justify-center gap-2 transition-all cursor-pointer select-none border border-sky-300/30"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>মিনি অ্যাপ ক্লোজ করুন</span>
+                </button>
+
+                <button
+                  onClick={() => setShowDownloadPopup(false)}
+                  className="w-full py-2.5 px-4 rounded-xl bg-white/10 hover:bg-white/15 active:scale-[0.98] text-slate-300 hover:text-white font-semibold text-xs transition-all cursor-pointer select-none"
+                >
+                  অ্যাপে থাকুন
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

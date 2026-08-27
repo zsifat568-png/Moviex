@@ -28,6 +28,22 @@ export const firebaseConfig = {
 export const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 export const db = getDatabase(app);
 
+// Helper to recursively clean objects and arrays for Firebase Realtime Database (eliminating undefined values)
+function sanitizeForFirebase(obj: any): any {
+  if (obj === undefined) return null;
+  if (obj === null || typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) {
+    return obj.map(item => sanitizeForFirebase(item));
+  }
+  const clean: Record<string, any> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value !== undefined) {
+      clean[key] = sanitizeForFirebase(value);
+    }
+  }
+  return clean;
+}
+
 /**
  * Real-time listener for all movies in Firebase
  */
@@ -63,7 +79,8 @@ export function subscribeToFirebaseMovies(onData: (movies: MovieItem[]) => void)
 export async function saveMovieToFirebase(movie: MovieItem): Promise<boolean> {
   try {
     const movieRef = ref(db, `movies/${movie.id}`);
-    await set(movieRef, movie);
+    const cleanMovie = sanitizeForFirebase(movie);
+    await set(movieRef, cleanMovie);
     return true;
   } catch (error) {
     console.error('Error saving movie to Firebase:', error);
@@ -90,9 +107,9 @@ export async function deleteMovieFromFirebase(movieId: string): Promise<boolean>
  */
 export async function syncAllMoviesToFirebase(movies: MovieItem[]): Promise<boolean> {
   try {
-    const updates: Record<string, MovieItem> = {};
+    const updates: Record<string, any> = {};
     movies.forEach(m => {
-      updates[`movies/${m.id}`] = m;
+      updates[`movies/${m.id}`] = sanitizeForFirebase(m);
     });
     await update(ref(db), updates);
     return true;
