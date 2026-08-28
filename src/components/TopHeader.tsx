@@ -1,18 +1,16 @@
 import React from 'react';
-import { Search, Sparkles, Clapperboard } from 'lucide-react';
+import { Search, Clapperboard } from 'lucide-react';
 import { SupportedLanguage, getTranslation } from '../utils/translations';
 
 interface TopHeaderProps {
   onOpenSearch: () => void;
-  onOpenWelcome: () => void;
+  onOpenWelcome?: () => void;
   totalMovies: number;
   language?: SupportedLanguage;
 }
 
 export const TopHeader: React.FC<TopHeaderProps> = ({ 
   onOpenSearch, 
-  onOpenWelcome, 
-  totalMovies, 
   language = 'en' 
 }) => {
   const t = (key: string) => getTranslation(language, key);
@@ -20,13 +18,11 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   return (
     <header className="sticky top-0 z-30 w-full bg-slate-950/80 backdrop-blur-xl border-b border-white/10 px-4 py-3">
       <div className="max-w-3xl mx-auto flex items-center justify-between">
-        {/* Brand Logo & Welcome Trigger */}
+        {/* Brand Logo */}
         <div 
-          onClick={onOpenWelcome}
-          className="flex items-center gap-2.5 cursor-pointer group select-none"
-          title="Welcome / Admin Security (Click to Unlock)"
+          className="flex items-center gap-2.5 select-none"
         >
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-rose-600 via-pink-600 to-amber-500 flex items-center justify-center text-white shadow-md shadow-rose-500/20 group-hover:scale-105 active:scale-95 transition-transform">
+          <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-rose-600 via-pink-600 to-amber-500 flex items-center justify-center text-white shadow-md shadow-rose-500/20">
             <Clapperboard className="w-4 h-4" />
           </div>
           <div className="flex items-center text-lg sm:text-xl font-black tracking-tight text-white">
@@ -39,19 +35,6 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
 
         {/* Action icons */}
         <div className="flex items-center gap-2">
-          {/* Welcome Icon Button */}
-          <button
-            id="header-welcome-passcode-btn"
-            onClick={onOpenWelcome}
-            title="Welcome & Security Unlock"
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-rose-500/15 via-purple-500/15 to-cyan-500/15 hover:from-rose-500/30 hover:to-cyan-500/30 border border-white/15 text-slate-200 hover:text-white transition-all shadow-inner active:scale-95 cursor-pointer group"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-amber-400 group-hover:rotate-12 transition-transform" />
-            <span className="text-[11px] font-bold text-slate-200 group-hover:text-amber-300 transition-colors">
-              Welcome
-            </span>
-          </button>
-
           {/* Search Trigger */}
           <button
             id="open-search-header-btn"
@@ -68,3 +51,4 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
     </header>
   );
 };
+

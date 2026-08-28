@@ -1,9 +1,10 @@
 /**
  * Telegram WebApp Service
  * Handles Telegram Mini App initialization, Haptic Feedback,
- * direct Bot API copyMessage delivery, clipboard auto-copy, and Telegram.WebApp.sendData() logic.
+ * direct Bot API delivery, and Telegram.WebApp.sendData() logic.
  */
 
+// Default Bot Token and Channel ID (Used to send messages to user's chat)
 export const TG_BOT_TOKEN = "8804626300:AAFiVAk5xrGsy9eeKexxkDSdy4QxBqnAG3U";
 export const TG_CHANNEL_ID = -1003911010893;
 
@@ -51,8 +52,8 @@ export interface SendDataResult {
 
 /**
  * Sends the configured Message ID or custom text directly to the Telegram bot inbox.
- * 1. Calls Telegram Bot API copyMessage directly if user ID is present in WebApp.
- * 2. Calls Telegram.WebApp.sendData(payload).
+ * 1. Direct Telegram Bot API sendMessage call using active user id from WebApp.
+ * 2. Telegram.WebApp.sendData(payload) call.
  * 3. Auto-copies to clipboard.
  */
 export const sendTelegramMessageData = async (
@@ -88,25 +89,30 @@ export const sendTelegramMessageData = async (
       // ignore
     }
 
-    // 3. Direct Telegram Bot API Delivery (Sends the exact configured message text like #post2 directly to the chat)
+    // 3. Direct Telegram Bot API Delivery (Sends the exact configured message text like #post2 directly to user's chat)
     const userId = tg?.initDataUnsafe?.user?.id;
     if (userId && TG_BOT_TOKEN) {
       try {
-        fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage`, {
+        const response = await fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             chat_id: userId,
             text: payload
           })
-        }).catch(err => console.warn('sendMessage API call warning:', err));
-        sentViaApi = true;
+        });
+        const data = await response.json();
+        if (data.ok) {
+          sentViaApi = true;
+        } else {
+          console.warn('Bot sendMessage response error:', data);
+        }
       } catch (err) {
         console.warn('Bot API delivery error:', err);
       }
     }
 
-    // 4. Send via native Telegram.WebApp.sendData() (for Keyboard button launches)
+    // 4. Send via native Telegram.WebApp.sendData() (if opened via Reply Keyboard button)
     if (tg && typeof tg.sendData === 'function') {
       try {
         tg.sendData(payload);
@@ -149,5 +155,6 @@ export const closeTelegramWebApp = (): void => {
     }
   }
 };
+
 
 
