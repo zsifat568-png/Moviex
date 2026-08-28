@@ -1029,25 +1029,25 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                   )}
                 </div>
 
-                {/* Telegram Bot Link / Message ID */}
+                {/* Telegram Bot Link / Message ID / Hidden Text */}
                 <div className="p-4 rounded-3xl bg-sky-950/30 border border-sky-500/40 space-y-2">
                   <label className="text-xs font-bold text-sky-300 flex items-center justify-between">
                     <span className="flex items-center gap-1.5">
-                      <span>✈️ চ্যানেলের Message ID (যেমন: 2) বা টেলিগ্রাম লিংক</span>
+                      <span>✈️ বটের জন্য লুকানো মেসেজ / Message ID (যেমন: #post2 বা 2)</span>
                     </span>
                     <span className="text-[10px] text-sky-300/80 font-normal">
-                      (Telegram.WebApp.sendData)
+                      (Auto Send to Bot)
                     </span>
                   </label>
                   <input
                     type="text"
                     value={telegramUrl}
                     onChange={(e) => setTelegramUrl(e.target.value)}
-                    placeholder="যেমন: 2 অথবা 145 (অথবা https://t.me/...)"
+                    placeholder="যেমন: #post2 অথবা 2 অথবা /get 2"
                     className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-950 border border-sky-500/30 text-xs text-white focus:outline-none focus:border-sky-400 font-mono"
                   />
                   <p className="text-[10px] text-sky-200/70">
-                    চ্যানেলের Message ID (যেমন: <b>2</b>) দিন। ইউজার ডাউনলোড বা Watch Now বাটনে ক্লিক করলে প্রাইভেট চ্যানেলে রিডাইরেক্ট না হয়ে, টেলিগ্রামের <b>Telegram.WebApp.sendData()</b> দিয়ে এই Message ID সরাসরি আপনার বটের ইনবক্সে চলে যাবে।
+                    এখানে আপনার প্রাইভেট চ্যানেলের পোস্ট ট্যাগ বা মেসেজ দিন (যেমন: <b>#post2</b> বা <b>2</b>)। ইউজার ডাউনলোডে ক্লিক করলেই স্বয়ংক্রিয়ভাবে ব্যাকগ্রাউন্ডে এই মেসেজটি বটের ইনবক্সে সেন্ড হয়ে যাবে।
                   </p>
                 </div>
 

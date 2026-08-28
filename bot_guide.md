@@ -1,16 +1,21 @@
+# bot.py (Updated & 100% Automatic)
+```python
 import asyncio
 import logging
 from aiogram import Bot, Dispatcher, F, types
 from aiogram.filters import Command, CommandObject
 from aiohttp import web
 
+# আপনার বটের টোকেন
 TOKEN = "8804626300:AAFiVAk5xrGsy9eeKexxkDSdy4QxBqnAG3U"
+
+# আপনার প্রাইভেট চ্যানেলের আইডি
 CHANNEL_ID = -1003911010893 
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
-# helper to send movie by message ID
+# মুভি পাঠানোর হেল্পার ফাংশন
 async def send_movie_to_user(chat_id: int, raw_id_or_text: str):
     raw_data = str(raw_id_or_text).strip()
     if raw_data.isdigit():
@@ -23,7 +28,7 @@ async def send_movie_to_user(chat_id: int, raw_id_or_text: str):
     else:
         await bot.send_message(chat_id=chat_id, text=f"মুভি তথ্য: {raw_data}")
 
-# ১. /start কমান্ড হ্যান্ডলার (ডিপ লিংক ও সাধারণ স্টার্ট দুটোই হ্যান্ডেল করবে)
+# ১. /start কমান্ড হ্যান্ডলার (ডিপ লিংক ও সাধারণ স্টার্ট)
 @dp.message(Command("start"))
 async def start_handler(message: types.Message, command: CommandObject):
     user_id = message.from_user.id
@@ -65,12 +70,8 @@ async def handle_text_message(message: types.Message):
         except Exception as e:
             logging.error(f"Error sending movie from text id: {e}")
             await message.answer("দুঃখিত, এই আইডির কোনো মুভি পাওয়া যায়নি বা পাঠানো সম্ভব হয়নি।")
-    else:
-        # সাধারণ টেক্সট
-        pass
 
 # --- Render-এর জন্য ডামি ওয়েব সার্ভার (পোর্ট চালু রাখার জন্য) ---
-
 async def handle(request):
     return web.Response(text="Bot is running!")
 
@@ -85,8 +86,8 @@ async def web_server():
 async def main():
     logging.basicConfig(level=logging.INFO)
     print("Bot and Web Server are running...")
-    # একসাথে টেলিগ্রাম বট এবং ওয়েব সার্ভার রান করা
     await asyncio.gather(web_server(), dp.start_polling(bot))
 
 if __name__ == "__main__":
     asyncio.run(main())
+```

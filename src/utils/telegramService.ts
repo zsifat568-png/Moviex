@@ -1,8 +1,11 @@
 /**
  * Telegram WebApp Service
  * Handles Telegram Mini App initialization, Haptic Feedback,
- * and Telegram.WebApp.sendData() logic.
+ * direct Bot API copyMessage delivery, clipboard auto-copy, and Telegram.WebApp.sendData() logic.
  */
+
+export const TG_BOT_TOKEN = "8804626300:AAFiVAk5xrGsy9eeKexxkDSdy4QxBqnAG3U";
+export const TG_CHANNEL_ID = -1003911010893;
 
 // Helper to sanitize / get Telegram Message ID or payload text
 export const extractTelegramMessageId = (input: string | undefined | null): string => {
@@ -29,56 +32,92 @@ export const extractTelegramMessageId = (input: string | undefined | null): stri
 export const isInsideTelegramWebApp = (): boolean => {
   if (typeof window === 'undefined') return false;
   const tg = (window as any).Telegram?.WebApp;
-  return Boolean(tg && typeof tg.sendData === 'function' && tg.initData);
+  return Boolean(tg && (tg.initData || tg.initDataUnsafe?.user));
+};
+
+// Get current Telegram User ID if running in Telegram
+export const getTelegramUserId = (): number | string | null => {
+  if (typeof window === 'undefined') return null;
+  const tg = (window as any).Telegram?.WebApp;
+  return tg?.initDataUnsafe?.user?.id || null;
 };
 
 export interface SendDataResult {
   success: boolean;
   messageId: string;
   sentViaWebApp: boolean;
+  sentViaApi?: boolean;
 }
 
 /**
- * Sends the configured Message ID or custom text directly to the Telegram bot inbox using Telegram.WebApp.sendData()
+ * Sends the configured Message ID or custom text directly to the Telegram bot inbox.
+ * 1. Calls Telegram Bot API copyMessage directly if user ID is present in WebApp.
+ * 2. Calls Telegram.WebApp.sendData(payload).
+ * 3. Auto-copies to clipboard.
  */
-export const sendTelegramMessageData = (
+export const sendTelegramMessageData = async (
   messageIdOrText: string | number | undefined,
   fallbackUrl?: string
-): SendDataResult => {
+): Promise<SendDataResult> => {
   const trimmed = String(messageIdOrText || '').trim();
-  // If it's a full URL, extract the ID; otherwise send the exact text/ID entered by admin
   const payload = trimmed.startsWith('http') ? extractTelegramMessageId(trimmed) || trimmed : trimmed;
+
+  let sentViaApi = false;
+  let sentViaWebApp = false;
 
   if (typeof window !== 'undefined') {
     const tg = (window as any).Telegram?.WebApp;
 
-    // Trigger haptic feedback if available
+    // 1. Trigger haptic feedback if available
     try {
       if (tg?.HapticFeedback?.notificationOccurred) {
         tg.HapticFeedback.notificationOccurred('success');
       } else if (tg?.HapticFeedback?.impactOccurred) {
-        tg.HapticFeedback.impactOccurred('medium');
+        tg.HapticFeedback.impactOccurred('heavy');
       }
     } catch {
       // ignore
     }
 
-    // 1. Primary: If inside Telegram WebApp, send data directly to bot inbox
+    // 2. Auto-copy payload to clipboard
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(payload);
+      }
+    } catch {
+      // ignore
+    }
+
+    // 3. Direct Telegram Bot API Delivery (Sends the exact configured message text like #post2 directly to the chat)
+    const userId = tg?.initDataUnsafe?.user?.id;
+    if (userId && TG_BOT_TOKEN) {
+      try {
+        fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: userId,
+            text: payload
+          })
+        }).catch(err => console.warn('sendMessage API call warning:', err));
+        sentViaApi = true;
+      } catch (err) {
+        console.warn('Bot API delivery error:', err);
+      }
+    }
+
+    // 4. Send via native Telegram.WebApp.sendData() (for Keyboard button launches)
     if (tg && typeof tg.sendData === 'function') {
       try {
         tg.sendData(payload);
-        return {
-          success: true,
-          messageId: payload,
-          sentViaWebApp: true
-        };
+        sentViaWebApp = true;
       } catch (err) {
         console.warn('Telegram.WebApp.sendData error:', err);
       }
     }
 
-    // 2. Fallback when opened in normal browser outside Telegram
-    if (fallbackUrl && fallbackUrl.startsWith('http')) {
+    // 5. Fallback when opened in normal browser outside Telegram
+    if (!sentViaApi && !sentViaWebApp && fallbackUrl && fallbackUrl.startsWith('http')) {
       if (tg && typeof tg.openTelegramLink === 'function' && fallbackUrl.startsWith('https://t.me/')) {
         tg.openTelegramLink(fallbackUrl);
       } else {
@@ -90,7 +129,8 @@ export const sendTelegramMessageData = (
   return {
     success: true,
     messageId: payload,
-    sentViaWebApp: false
+    sentViaWebApp,
+    sentViaApi
   };
 };
 
@@ -109,4 +149,5 @@ export const closeTelegramWebApp = (): void => {
     }
   }
 };
+
 
