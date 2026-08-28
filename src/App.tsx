@@ -30,7 +30,7 @@ import { AdminPanelModal } from './components/AdminPanelModal';
 import { ApplePasscodeModal } from './components/ApplePasscodeModal';
 import { BottomNavBar, TabType } from './components/BottomNavBar';
 import { getTranslation, SupportedLanguage } from './utils/translations';
-import { ArrowUp, RotateCw, Sparkles, Pin, Film, UploadCloud } from 'lucide-react';
+import { Sparkles, Pin, Film, UploadCloud } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 const STORAGE_KEYS = {
@@ -424,24 +424,6 @@ export default function App() {
     });
   }, [movies, selectedCategory, pinnedMovieIds]);
 
-  // Tab scroll memory for independent scroll per page
-  const tabScrollPositions = useRef<Record<string, number>>({});
-
-  const handleSelectTab = (newTab: TabType) => {
-    if (newTab === activeTab) {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      return;
-    }
-    // Record current scroll for this tab
-    tabScrollPositions.current[activeTab] = window.scrollY;
-    setActiveTab(newTab);
-    // Smoothly set to saved scroll for the target tab
-    requestAnimationFrame(() => {
-      const targetScroll = tabScrollPositions.current[newTab] || 0;
-      window.scrollTo({ top: targetScroll, behavior: 'instant' });
-    });
-  };
-
   // State for ultra-fast progressive batch loading (20 initial, 10 on scroll)
   const INITIAL_BATCH_SIZE = 20;
   const BATCH_INCREMENT = 10;
@@ -449,32 +431,68 @@ export default function App() {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
 
-  // Scroll to top & Auto Reload state
-  const [showScrollTop, setShowScrollTop] = useState(false);
+  // Auto Reload state on Home click
   const [isReloading, setIsReloading] = useState(false);
   const [reloadToast, setReloadToast] = useState('');
 
-  // Track window scroll for scroll-to-top button
-  useEffect(() => {
-    const handleScroll = () => {
-      setShowScrollTop(window.scrollY > 280);
-    };
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
-
-  // Scroll to Top & Quick Refresh
+  // Scroll to Top & Quick Refresh/Reload on Home click
   const handleScrollToTopAndReload = () => {
     setIsReloading(true);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    // Scroll window, documentElement, and body to top smoothly
+    window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
+    document.documentElement.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
+    document.body.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
+    
+    setSelectedCategory('all');
     setVisibleCount(INITIAL_BATCH_SIZE);
 
     setTimeout(() => {
       setIsReloading(false);
-      setReloadToast('মুভি তালিকা রিফ্রেশ করা হয়েছে! ✨');
-      confetti({ particleCount: 20, spread: 45, origin: { y: 0.9 } });
+      setReloadToast('হোম পেজ রিফ্রেশ করা হয়েছে! ✨');
+      confetti({ particleCount: 25, spread: 50, origin: { y: 0.9 } });
       setTimeout(() => setReloadToast(''), 2500);
     }, 400);
+  };
+
+  // Tab scroll memory for independent scroll per page
+  const tabScrollPositions = useRef<Record<string, number>>({});
+
+  // Tab navigation handler:
+  // - Clicking Home while ALREADY on Home -> Smooth scroll to top & reload movies
+  // - Clicking Home from other tabs -> Simple switch to Home tab
+  const handleSelectTab = (newTab: TabType) => {
+    if (newTab === 'home') {
+      if (activeTab === 'home') {
+        // Already on home -> scroll to top & reload movies
+        handleScrollToTopAndReload();
+        return;
+      } else {
+        // Switching to home from another tab -> switch tab and scroll to top smoothly without reloading animation
+        tabScrollPositions.current[activeTab] = window.scrollY;
+        setActiveTab('home');
+        requestAnimationFrame(() => {
+          window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
+          document.documentElement.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
+          document.body.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
+        });
+        return;
+      }
+    }
+
+    if (newTab === activeTab) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
+    // Switching between other tabs:
+    tabScrollPositions.current[activeTab] = window.scrollY;
+    setActiveTab(newTab);
+
+    // Smoothly set to saved scroll for the target tab
+    requestAnimationFrame(() => {
+      const targetScroll = tabScrollPositions.current[newTab] || 0;
+      window.scrollTo({ top: targetScroll, behavior: 'instant' });
+    });
   };
 
   // Reset pagination when category or active tab changes
@@ -527,6 +545,7 @@ export default function App() {
         <TopHeader
           onOpenSearch={() => setIsSearchOpen(true)}
           onOpenWelcome={() => setIsPasscodeOpen(true)}
+          onLogoClick={handleScrollToTopAndReload}
           totalMovies={movies.length}
           language={currentLang}
         />
@@ -666,26 +685,10 @@ export default function App() {
           language={currentLang}
         />
 
-        {/* Floating Scroll to Top & Auto Reload Button */}
-        {showScrollTop && (
-          <div className="fixed bottom-20 right-4 z-40 flex flex-col items-end gap-2 animate-in fade-in slide-in-from-bottom-4 duration-300">
-            {reloadToast && (
-              <div className="px-3 py-1.5 rounded-full bg-slate-900/95 border border-cyan-500/50 text-cyan-300 text-[11px] font-bold shadow-2xl backdrop-blur-md animate-bounce">
-                {reloadToast}
-              </div>
-            )}
-            <button
-              onClick={handleScrollToTopAndReload}
-              disabled={isReloading}
-              title="উপরে যান ও মুভি রিফ্রেশ করুন"
-              className="group flex items-center gap-2 px-3.5 py-2.5 rounded-full bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 text-white shadow-xl shadow-cyan-500/25 border border-white/20 hover:scale-105 active:scale-95 transition-all cursor-pointer"
-            >
-              <ArrowUp className={`w-4 h-4 transition-transform group-hover:-translate-y-0.5 ${isReloading ? 'hidden' : 'block'}`} />
-              <RotateCw className={`w-4 h-4 ${isReloading ? 'animate-spin block text-yellow-300' : 'hidden group-hover:block'}`} />
-              <span className="text-xs font-bold whitespace-nowrap">
-                {isReloading ? 'রিফ্রেশ হচ্ছে...' : 'উপরে যান'}
-              </span>
-            </button>
+        {/* Reload Feedback Toast (Triggered on Home tap) */}
+        {reloadToast && (
+          <div className="fixed bottom-20 right-4 z-40 px-3.5 py-2 rounded-full bg-slate-900/95 border border-cyan-500/50 text-cyan-300 text-xs font-bold shadow-2xl backdrop-blur-md animate-in fade-in slide-in-from-bottom-2 duration-200">
+            {reloadToast}
           </div>
         )}
 
