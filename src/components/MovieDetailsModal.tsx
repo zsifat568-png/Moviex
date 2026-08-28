@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { MovieItem, MovieActor } from '../types';
 import { fetchCastAndDetailsForMovie, getActorAvatarFallback } from '../utils/tmdbService';
-import { sendTelegramMessageData, extractTelegramMessageId, closeTelegramWebApp } from '../utils/telegramService';
+import { sendTelegramMessageData, extractTelegramMessageId, closeTelegramWebApp, openBotChat, TG_BOT_USERNAME } from '../utils/telegramService';
 import { AdminPosterModal } from './AdminPosterModal';
 
 interface MovieDetailsModalProps {
@@ -602,31 +602,45 @@ export const MovieDetailsModal: React.FC<MovieDetailsModalProps> = ({
               </div>
 
               {/* Crystal Clear Readable Message Box */}
-              <div className="bg-slate-950/60 border border-sky-400/20 rounded-2xl p-4 sm:p-4.5 shadow-inner">
-                <p className="text-sm sm:text-base text-slate-100 leading-relaxed font-semibold">
-                  আপনার মুভিটি আপনার বট ইনবক্সে পাঠিয়ে দেওয়া হয়েছে। অনুগ্রহ করে মিনি অ্যাপটি ক্লোজ করুন এবং আপনার বট ইনবক্স চেক করুন।
+              <div className="bg-slate-950/70 border border-sky-400/25 rounded-2xl p-4 text-left space-y-2 shadow-inner">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-sky-400">অটো মেসেজ টার্গেট:</span>
+                  <span className="text-[11px] font-mono text-amber-300 font-bold bg-amber-400/10 px-2 py-0.5 rounded-md border border-amber-400/20">
+                    @{TG_BOT_USERNAME}
+                  </span>
+                </div>
+                <p className="text-xs sm:text-sm text-slate-100 leading-relaxed font-medium">
+                  মুভিটি সেন্ড করার রিকোয়েস্ট পাঠানো হয়েছে। নিচের বাটন দিয়ে সরাসরি বটের ইনবক্সে গিয়ে ফাইলটি ডাউনলোড বা দেখতে পারবেন।
                 </p>
               </div>
 
               {/* Action Buttons */}
               <div className="space-y-2.5 pt-1">
                 <button
+                  id="open-telegram-bot-direct-btn"
+                  onClick={() => {
+                    const tgStream = movie.streamLinks?.find(l => l.type === 'telegram');
+                    const rawIdOrUrl = movie.messageId || tgStream?.messageId || tgStream?.url || movie.streamLinks?.[0]?.url || '';
+                    const messageId = extractTelegramMessageId(rawIdOrUrl) || rawIdOrUrl || movie.id;
+                    openBotChat(messageId);
+                    setShowDownloadPopup(false);
+                  }}
+                  className="w-full py-3.5 px-5 rounded-2xl bg-gradient-to-r from-sky-600 via-blue-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 active:scale-[0.98] text-white font-bold text-sm tracking-wide shadow-lg shadow-sky-600/30 flex items-center justify-center gap-2 transition-all cursor-pointer select-none border border-sky-300/30"
+                >
+                  <Send className="w-4 h-4" />
+                  <span>বট ইনবক্সে যান (@{TG_BOT_USERNAME})</span>
+                </button>
+
+                <button
                   id="close-telegram-webapp-btn"
                   onClick={() => {
                     closeTelegramWebApp();
                     setShowDownloadPopup(false);
                   }}
-                  className="w-full py-3 px-5 rounded-2xl bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 active:scale-[0.98] text-white font-bold text-sm tracking-wide shadow-lg shadow-sky-600/30 flex items-center justify-center gap-2 transition-all cursor-pointer select-none border border-sky-300/30"
+                  className="w-full py-2.5 px-4 rounded-xl bg-white/10 hover:bg-white/15 active:scale-[0.98] text-slate-200 hover:text-white font-semibold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer select-none border border-white/10"
                 >
-                  <Check className="w-4 h-4" />
+                  <Check className="w-3.5 h-3.5 text-emerald-400" />
                   <span>মিনি অ্যাপ ক্লোজ করুন</span>
-                </button>
-
-                <button
-                  onClick={() => setShowDownloadPopup(false)}
-                  className="w-full py-2.5 px-4 rounded-xl bg-white/10 hover:bg-white/15 active:scale-[0.98] text-slate-300 hover:text-white font-semibold text-xs transition-all cursor-pointer select-none"
-                >
-                  অ্যাপে থাকুন
                 </button>
               </div>
             </motion.div>

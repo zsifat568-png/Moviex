@@ -1,10 +1,11 @@
 /**
  * Telegram WebApp Service
  * Handles Telegram Mini App initialization, Haptic Feedback,
- * direct Bot API delivery, and Telegram.WebApp.sendData() logic.
+ * direct Bot API delivery, Telegram deep-linking, and Telegram.WebApp.sendData() logic.
  */
 
-// Default Bot Token and Channel ID (Used to send messages to user's chat)
+// Configured Bot Username and Token
+export const TG_BOT_USERNAME = "moviex_hd_bot";
 export const TG_BOT_TOKEN = "8804626300:AAFiVAk5xrGsy9eeKexxkDSdy4QxBqnAG3U";
 export const TG_CHANNEL_ID = -1003911010893;
 
@@ -29,6 +30,19 @@ export const extractTelegramMessageId = (input: string | undefined | null): stri
   return trimmed;
 };
 
+// Clean parameter specifically for Telegram ?start= URL parameter (alphanumeric and underscores)
+export const sanitizeForTelegramStart = (input: string): string => {
+  if (!input) return '';
+  let clean = input.trim();
+  // Remove starting hash or slash
+  clean = clean.replace(/^[#/]+/, '');
+  // Replace spaces with underscores
+  clean = clean.replace(/\s+/g, '_');
+  // Remove any chars not allowed in Telegram start param
+  clean = clean.replace(/[^a-zA-Z0-9_-]/g, '');
+  return clean;
+};
+
 // Check if currently running inside Telegram WebApp
 export const isInsideTelegramWebApp = (): boolean => {
   if (typeof window === 'undefined') return false;
@@ -46,22 +60,27 @@ export const getTelegramUserId = (): number | string | null => {
 export interface SendDataResult {
   success: boolean;
   messageId: string;
+  botDeepLink: string;
   sentViaWebApp: boolean;
   sentViaApi?: boolean;
 }
 
 /**
  * Sends the configured Message ID or custom text directly to the Telegram bot inbox.
- * 1. Direct Telegram Bot API sendMessage call using active user id from WebApp.
- * 2. Telegram.WebApp.sendData(payload) call.
- * 3. Auto-copies to clipboard.
+ * 1. Generates Telegram bot deep link (https://t.me/moviex_hd_bot?start=...).
+ * 2. Calls direct Telegram Bot API sendMessage if user ID is present.
+ * 3. Calls Telegram.WebApp.sendData(payload).
+ * 4. Opens the bot deep link via Telegram.WebApp.openTelegramLink.
+ * 5. Auto-copies to clipboard.
  */
 export const sendTelegramMessageData = async (
   messageIdOrText: string | number | undefined,
   fallbackUrl?: string
 ): Promise<SendDataResult> => {
   const trimmed = String(messageIdOrText || '').trim();
-  const payload = trimmed.startsWith('http') ? extractTelegramMessageId(trimmed) || trimmed : trimmed;
+  const rawPayload = trimmed.startsWith('http') ? extractTelegramMessageId(trimmed) || trimmed : trimmed;
+  const cleanStartParam = sanitizeForTelegramStart(rawPayload) || '2';
+  const botDeepLink = `https://t.me/${TG_BOT_USERNAME}?start=${encodeURIComponent(cleanStartParam)}`;
 
   let sentViaApi = false;
   let sentViaWebApp = false;
@@ -83,7 +102,7 @@ export const sendTelegramMessageData = async (
     // 2. Auto-copy payload to clipboard
     try {
       if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(payload);
+        await navigator.clipboard.writeText(rawPayload);
       }
     } catch {
       // ignore
@@ -98,7 +117,7 @@ export const sendTelegramMessageData = async (
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             chat_id: userId,
-            text: payload
+            text: rawPayload
           })
         });
         const data = await response.json();
@@ -115,29 +134,51 @@ export const sendTelegramMessageData = async (
     // 4. Send via native Telegram.WebApp.sendData() (if opened via Reply Keyboard button)
     if (tg && typeof tg.sendData === 'function') {
       try {
-        tg.sendData(payload);
+        tg.sendData(rawPayload);
         sentViaWebApp = true;
       } catch (err) {
         console.warn('Telegram.WebApp.sendData error:', err);
       }
     }
 
-    // 5. Fallback when opened in normal browser outside Telegram
-    if (!sentViaApi && !sentViaWebApp && fallbackUrl && fallbackUrl.startsWith('http')) {
-      if (tg && typeof tg.openTelegramLink === 'function' && fallbackUrl.startsWith('https://t.me/')) {
-        tg.openTelegramLink(fallbackUrl);
-      } else {
-        window.open(fallbackUrl, '_blank');
+    // 5. Open Telegram Bot Deep Link directly
+    if (tg && typeof tg.openTelegramLink === 'function') {
+      try {
+        tg.openTelegramLink(botDeepLink);
+      } catch (e) {
+        console.warn('openTelegramLink error:', e);
       }
+    } else if (fallbackUrl && fallbackUrl.startsWith('http')) {
+      window.open(fallbackUrl, '_blank');
     }
   }
 
   return {
     success: true,
-    messageId: payload,
+    messageId: rawPayload,
+    botDeepLink,
     sentViaWebApp,
     sentViaApi
   };
+};
+
+/**
+ * Open the bot chat directly in Telegram
+ */
+export const openBotChat = (messageIdOrText?: string): void => {
+  const cleanStart = messageIdOrText ? sanitizeForTelegramStart(messageIdOrText) : '';
+  const url = cleanStart 
+    ? `https://t.me/${TG_BOT_USERNAME}?start=${encodeURIComponent(cleanStart)}`
+    : `https://t.me/${TG_BOT_USERNAME}`;
+
+  if (typeof window !== 'undefined') {
+    const tg = (window as any).Telegram?.WebApp;
+    if (tg && typeof tg.openTelegramLink === 'function') {
+      tg.openTelegramLink(url);
+    } else {
+      window.open(url, '_blank');
+    }
+  }
 };
 
 /**
@@ -155,6 +196,7 @@ export const closeTelegramWebApp = (): void => {
     }
   }
 };
+
 
 
 
