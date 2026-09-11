@@ -88,6 +88,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({
       (m.titleEn && m.titleEn.toLowerCase().includes(q)) ||
       (Array.isArray(m.genres) && m.genres.some(g => typeof g === 'string' && g.toLowerCase().includes(q))) ||
       (Array.isArray(m.cast) && m.cast.some(c => typeof c === 'string' && c.toLowerCase().includes(q))) ||
+      (Array.isArray(m.actors) && m.actors.some(a => a && a.name && a.name.toLowerCase().includes(q))) ||
       (m.director && typeof m.director === 'string' && m.director.toLowerCase().includes(q))
     );
   }, [query, movies]);

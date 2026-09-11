@@ -30,6 +30,7 @@ import { AdminPanelModal } from './components/AdminPanelModal';
 import { ApplePasscodeModal } from './components/ApplePasscodeModal';
 import { BottomNavBar, TabType } from './components/BottomNavBar';
 import { getTranslation, SupportedLanguage } from './utils/translations';
+import { triggerMondiadInterstitial } from './utils/adService';
 import { Sparkles, Pin, Film, UploadCloud } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -66,6 +67,14 @@ export default function App() {
   const [selectedMovie, setSelectedMovie] = useState<MovieItem | null>(null);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('all');
+
+  const handleOpenMovieWithAd = (movie: MovieItem) => {
+    // Per-click Mondiad interstitial ad trigger on every movie poster click
+    triggerMondiadInterstitial();
+
+    // Open movie details directly
+    setSelectedMovie(movie);
+  };
 
   // Initialize Telegram WebApp
   useEffect(() => {
@@ -558,7 +567,7 @@ export default function App() {
               {/* Hero Carousel with bounce icon transitions */}
               <HeroCarousel
                 movies={movies}
-                onSelectMovie={(movie) => setSelectedMovie(movie)}
+                onSelectMovie={handleOpenMovieWithAd}
                 heroMovieIds={heroMovieIds}
               />
 
@@ -579,7 +588,7 @@ export default function App() {
                       <MovieCard
                         key={movie.id}
                         movie={movie}
-                        onSelect={(m) => setSelectedMovie(m)}
+                        onSelect={handleOpenMovieWithAd}
                         onToggleLike={handleToggleLike}
                         onToggleFavorite={handleToggleFavorite}
                         isSaved={(userProfile?.savedMovieIds || []).includes(movie.id)}
@@ -635,7 +644,7 @@ export default function App() {
           {activeTab === 'favorite' && (
             <FavoriteView
               savedMovies={savedMoviesList}
-              onSelectMovie={(movie) => setSelectedMovie(movie)}
+              onSelectMovie={handleOpenMovieWithAd}
               onRemoveFavorite={handleToggleFavorite}
               onGoHome={() => setActiveTab('home')}
               language={currentLang}
@@ -646,7 +655,7 @@ export default function App() {
           {activeTab === 'tools' && (
             <TopRatedView
               movies={movies}
-              onSelectMovie={(movie) => setSelectedMovie(movie)}
+              onSelectMovie={handleOpenMovieWithAd}
               onToggleLike={handleToggleLike}
               onToggleFavorite={handleToggleFavorite}
               savedMovieIds={userProfile?.savedMovieIds || []}
@@ -697,7 +706,7 @@ export default function App() {
           isOpen={isSearchOpen}
           onClose={() => setIsSearchOpen(false)}
           movies={movies}
-          onSelectMovie={(movie) => setSelectedMovie(movie)}
+          onSelectMovie={handleOpenMovieWithAd}
           language={currentLang}
         />
 
@@ -751,7 +760,7 @@ export default function App() {
             onToggleFavorite={handleToggleFavorite}
             isSaved={(userProfile?.savedMovieIds || []).includes(selectedMovie.id)}
             onAddComment={handleAddComment}
-            onSelectRelated={(rel) => setSelectedMovie(rel)}
+            onSelectRelated={handleOpenMovieWithAd}
             allMovies={movies}
             onUpdateMoviePosters={handleUpdateMoviePosters}
           />

@@ -11,6 +11,9 @@ import { MovieItem, MovieActor } from '../types';
 import { fetchCastAndDetailsForMovie, getActorAvatarFallback } from '../utils/tmdbService';
 import { sendTelegramMessageData, extractTelegramMessageId, closeTelegramWebApp, openBotChat, TG_BOT_USERNAME } from '../utils/telegramService';
 import { AdminPosterModal } from './AdminPosterModal';
+import { ApplePasscodeModal } from './ApplePasscodeModal';
+import { ActorMoviesModal } from './ActorMoviesModal';
+import { triggerMondiadPopunder } from '../utils/adService';
 
 interface MovieDetailsModalProps {
   movie: MovieItem | null;
@@ -48,6 +51,7 @@ export const MovieDetailsModal: React.FC<MovieDetailsModalProps> = ({
   const [trailerKey, setTrailerKey] = useState<string | null>(null);
   const [actorsList, setActorsList] = useState<MovieActor[]>(movie.actors || []);
   const [isLoadingCast, setIsLoadingCast] = useState(false);
+  const [selectedActor, setSelectedActor] = useState<MovieActor | null>(null);
   const [synopsisText, setSynopsisText] = useState(movie.synopsisBn);
   const [directorName, setDirectorName] = useState(movie.director);
   
@@ -56,6 +60,9 @@ export const MovieDetailsModal: React.FC<MovieDetailsModalProps> = ({
   const [slideDirection, setSlideDirection] = useState<'left' | 'right'>('right');
   const [isPaused, setIsPaused] = useState(false);
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
+  const [isPasscodeModalOpen, setIsPasscodeModalOpen] = useState(false);
+  const [lastPosterTapTime, setLastPosterTapTime] = useState(0);
+  const [showDoubleTapHint, setShowDoubleTapHint] = useState(false);
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const [showDownloadPopup, setShowDownloadPopup] = useState(false);
 
@@ -151,7 +158,7 @@ export const MovieDetailsModal: React.FC<MovieDetailsModalProps> = ({
 
   const activePoster = allPosters[currentPosterIndex] || movie.posterUrl || movie.backdropUrl;
 
-  const handleTelegramDownload = () => {
+  const executeTelegramDownload = () => {
     // 1. Get Message ID or Telegram stream link
     const tgStream = movie.streamLinks?.find(l => l.type === 'telegram');
     const rawIdOrUrl = movie.messageId || tgStream?.messageId || tgStream?.url || movie.streamLinks?.[0]?.url || '';
@@ -162,6 +169,31 @@ export const MovieDetailsModal: React.FC<MovieDetailsModalProps> = ({
 
     // 3. Show stylish glass notification popup
     setShowDownloadPopup(true);
+  };
+
+  const handleTelegramDownload = () => {
+    // 1. Run Mondiad Popunder ad on every download click (no timer, triggered on every click)
+    triggerMondiadPopunder();
+
+    // 2. Immediately execute download without any timer or delay
+    executeTelegramDownload();
+  };
+
+  // 2-Tap (Double Tap) Poster Manage Click Handler with Welcome-style Passcode
+  const handlePosterManageClick = () => {
+    const now = Date.now();
+    if (now - lastPosterTapTime < 600) {
+      // 2 bar tap (double tap) within 600ms succeeded!
+      setLastPosterTapTime(0);
+      setShowDoubleTapHint(false);
+      // Open Apple Passcode Modal (Same as Welcome, passcode 37421237)
+      setIsPasscodeModalOpen(true);
+    } else {
+      // 1st tap - prompt for 2nd tap
+      setLastPosterTapTime(now);
+      setShowDoubleTapHint(true);
+      setTimeout(() => setShowDoubleTapHint(false), 1600);
+    }
   };
 
   return (
@@ -181,16 +213,41 @@ export const MovieDetailsModal: React.FC<MovieDetailsModalProps> = ({
           </button>
 
           <div className="flex items-center gap-2">
-            {/* Admin Poster Manager Button */}
-            <button
-              id="admin-manage-posters-btn"
-              onClick={() => setIsAdminModalOpen(true)}
-              className="px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-rose-500/20 text-rose-300 hover:text-rose-200 border border-rose-500/30 text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm active:scale-95"
-              title="Admin: পোস্টার যোগ বা পরিবর্তন করুন"
-            >
-              <ImageIcon className="w-3.5 h-3.5 text-rose-400" />
-              <span className="hidden sm:inline">পোস্টার ম্যানেজ</span>
-            </button>
+            {/* Admin Poster Manager Button: Double-Tap + Passcode Protection */}
+            <div className="relative">
+              <button
+                id="admin-manage-posters-btn"
+                onClick={handlePosterManageClick}
+                className={`px-2.5 py-1.5 rounded-xl transition-all text-xs font-bold flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer border ${
+                  showDoubleTapHint
+                    ? 'bg-rose-600 text-white border-rose-400 ring-2 ring-rose-500/50 scale-105'
+                    : 'bg-white/10 hover:bg-rose-500/20 text-rose-300 hover:text-rose-200 border-rose-500/30'
+                }`}
+                title="পোস্টার ম্যানেজ করতে ২ বার চাপুন"
+              >
+                <ImageIcon className={`w-3.5 h-3.5 ${showDoubleTapHint ? 'text-white animate-bounce' : 'text-rose-400'}`} />
+                <span className="hidden sm:inline">
+                  {showDoubleTapHint ? 'আবার চাপুন (2/2)!' : 'পোস্টার ম্যানেজ'}
+                </span>
+                <span className="sm:hidden">
+                  {showDoubleTapHint ? 'আবার চাপুন!' : 'পোস্টার'}
+                </span>
+              </button>
+
+              {/* 2-Tap Security Hint Overlay */}
+              <AnimatePresence>
+                {showDoubleTapHint && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -5, scale: 0.9 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.9 }}
+                    className="absolute top-full right-0 mt-1.5 whitespace-nowrap px-2.5 py-1 rounded-lg bg-rose-600 text-white text-[11px] font-bold shadow-xl border border-rose-400 z-50 pointer-events-none flex items-center gap-1"
+                  >
+                    <span>পাসকোডের জন্য ২য় বার চাপুন</span>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
 
             {/* Favorite Bookmark */}
             <button
@@ -436,10 +493,15 @@ export const MovieDetailsModal: React.FC<MovieDetailsModalProps> = ({
           {/* 🌟 100% VISIBLE ACTOR PHOTOS & NAMES */}
           <div className="space-y-3 pt-2 border-t border-white/10">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <Users className="w-4 h-4 text-rose-400" />
-                <span>অভিনয়শিল্পী ({actorsList.length} জন)</span>
-              </h3>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <Users className="w-4 h-4 text-rose-400" />
+                  <span>অভিনয়শিল্পী ({actorsList.length} জন)</span>
+                </h3>
+                <span className="hidden sm:inline-flex text-[10px] text-rose-300/90 bg-rose-500/10 px-2 py-0.5 rounded-full border border-rose-500/20">
+                  ক্লিক করে মুভিগুলো দেখুন
+                </span>
+              </div>
               {isLoadingCast && (
                 <span className="text-[11px] text-cyan-400 flex items-center gap-1">
                   <Loader2 className="w-3 h-3 animate-spin" /> TMDB তথ্য লোড হচ্ছে...
@@ -455,7 +517,9 @@ export const MovieDetailsModal: React.FC<MovieDetailsModalProps> = ({
                   return (
                     <div
                       key={actor.id ? `actor-${actor.id}` : `actor-idx-${idx}`}
-                      className="flex-shrink-0 w-20 sm:w-24 flex flex-col items-center text-center space-y-1.5 group/actor cursor-pointer"
+                      onClick={() => setSelectedActor(actor)}
+                      className="flex-shrink-0 w-20 sm:w-24 flex flex-col items-center text-center space-y-1.5 group/actor cursor-pointer select-none active:scale-95 transition-transform"
+                      title={`${actor.name} - সকল আপলোড ও আসন্ন মুভি দেখতে ক্লিক করুন`}
                     >
                       {/* Clean Round High-Res Avatar */}
                       <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full overflow-hidden bg-slate-800 ring-2 ring-white/10 group-hover/actor:ring-rose-500 group-hover/actor:shadow-lg group-hover/actor:shadow-rose-500/30 transition-all shrink-0 shadow-md relative">
@@ -472,6 +536,9 @@ export const MovieDetailsModal: React.FC<MovieDetailsModalProps> = ({
                             }
                           }}
                         />
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/actor:opacity-100 transition-opacity flex items-center justify-center">
+                          <Film className="w-4 h-4 text-rose-400 drop-shadow" />
+                        </div>
                       </div>
 
                       {/* Actor Name & Character underneath */}
@@ -479,9 +546,13 @@ export const MovieDetailsModal: React.FC<MovieDetailsModalProps> = ({
                         <h4 className="text-[11px] sm:text-xs font-bold text-slate-200 line-clamp-1 group-hover/actor:text-rose-400 transition-colors">
                           {actor.name}
                         </h4>
-                        {actor.character && (
+                        {actor.character ? (
                           <p className="text-[10px] sm:text-[11px] text-slate-400 line-clamp-1 font-medium">
                             {actor.character}
+                          </p>
+                        ) : (
+                          <p className="text-[9px] text-rose-400/80 line-clamp-1 font-medium group-hover/actor:underline">
+                            মুভি দেখুন ➔
                           </p>
                         )}
                       </div>
@@ -550,6 +621,17 @@ export const MovieDetailsModal: React.FC<MovieDetailsModalProps> = ({
         movieTitle={movie.titleBn}
         currentPosters={allPosters}
         onSavePosters={handleSavePosters}
+      />
+
+      {/* 🌟 Welcome-Style Apple Passcode Security Modal (Passcode: 37421237) */}
+      <ApplePasscodeModal
+        isOpen={isPasscodeModalOpen}
+        onClose={() => setIsPasscodeModalOpen(false)}
+        onSuccess={() => {
+          setIsPasscodeModalOpen(false);
+          setIsAdminModalOpen(true);
+        }}
+        targetPasscode="37421237"
       />
 
       {/* 🌟 Stylish Glass-Effect Download / Bot Inbox Popup Modal */}
@@ -647,6 +729,20 @@ export const MovieDetailsModal: React.FC<MovieDetailsModalProps> = ({
           </div>
         )}
       </AnimatePresence>
+
+      {/* Actor Filmography & Upcoming Releases Modal */}
+      {selectedActor && (
+        <ActorMoviesModal
+          actor={selectedActor}
+          isOpen={!!selectedActor}
+          onClose={() => setSelectedActor(null)}
+          allMovies={allMovies}
+          onSelectMovie={(selectedM) => {
+            setSelectedActor(null);
+            onSelectRelated(selectedM);
+          }}
+        />
+      )}
     </div>
   );
 };

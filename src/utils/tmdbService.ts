@@ -511,3 +511,173 @@ export async function fetchTMDBHomeMovies(): Promise<AutoFetchedMovieData[]> {
   }
 }
 
+export interface ActorCreditMovie {
+  id: number;
+  title: string;
+  original_title?: string;
+  posterUrl?: string;
+  backdropUrl?: string;
+  releaseDate?: string;
+  releaseYear?: number;
+  character?: string;
+  rating?: number;
+  overview?: string;
+  isUpcoming: boolean;
+}
+
+export interface ActorFullDetails {
+  id: number;
+  name: string;
+  originalName?: string;
+  profileUrl?: string;
+  biography?: string;
+  birthday?: string;
+  placeOfBirth?: string;
+  knownForDepartment?: string;
+  upcomingMovies: ActorCreditMovie[];
+  releasedMovies: ActorCreditMovie[];
+  totalCredits: number;
+}
+
+const actorDetailsCache = new Map<string, ActorFullDetails>();
+
+/**
+ * Fetch full actor details and their complete movie credits from TMDB.
+ * Splits filmography into upcoming and released movies.
+ */
+export async function fetchActorFullDetails(
+  actorId?: number,
+  actorName?: string
+): Promise<ActorFullDetails | null> {
+  const cacheKey = actorId ? `id-${actorId}` : `name-${(actorName || '').trim().toLowerCase()}`;
+  if (actorDetailsCache.has(cacheKey)) {
+    return actorDetailsCache.get(cacheKey)!;
+  }
+
+  try {
+    let personId = actorId;
+    let initialProfileUrl: string | undefined;
+
+    // If no ID is available, search TMDB for the person
+    if (!personId && actorName) {
+      const searchUrl = `${TMDB_BASE_URL}/search/person?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(actorName)}`;
+      const searchRes = await fetch(searchUrl);
+      if (searchRes.ok) {
+        const searchData = await searchRes.json();
+        if (searchData.results && searchData.results.length > 0) {
+          const match = searchData.results[0];
+          personId = match.id;
+          if (match.profile_path) {
+            initialProfileUrl = `${IMAGE_BASE_W185}${match.profile_path}`;
+          }
+        }
+      }
+    }
+
+    if (!personId) {
+      // Fallback data if person is not on TMDB
+      const fallbackData: ActorFullDetails = {
+        id: 0,
+        name: actorName || 'অভিনয়শিল্পী',
+        profileUrl: initialProfileUrl || (actorName ? getActorAvatarFallback(actorName) : undefined),
+        upcomingMovies: [],
+        releasedMovies: [],
+        totalCredits: 0
+      };
+      actorDetailsCache.set(cacheKey, fallbackData);
+      return fallbackData;
+    }
+
+    // Fetch both person details and movie credits in parallel
+    const [personRes, creditsRes] = await Promise.all([
+      fetch(`${TMDB_BASE_URL}/person/${personId}?api_key=${TMDB_API_KEY}`).then(r => r.json()).catch(() => null),
+      fetch(`${TMDB_BASE_URL}/person/${personId}/movie_credits?api_key=${TMDB_API_KEY}`).then(r => r.json()).catch(() => null)
+    ]);
+
+    const name = personRes?.name || actorName || 'অভিনয়শিল্পী';
+    const profileUrl = personRes?.profile_path 
+      ? `${IMAGE_BASE_W780}${personRes.profile_path}` 
+      : initialProfileUrl || getActorAvatarFallback(name);
+
+    const rawCast = Array.isArray(creditsRes?.cast) ? creditsRes.cast : [];
+    const now = Date.now();
+    const upcoming: ActorCreditMovie[] = [];
+    const released: ActorCreditMovie[] = [];
+
+    // Deduplicate credits by TMDB movie ID
+    const seenMovieIds = new Set<number>();
+
+    for (const m of rawCast) {
+      if (!m.id || seenMovieIds.has(m.id)) continue;
+      seenMovieIds.add(m.id);
+
+      const releaseDateStr = m.release_date || '';
+      const releaseTime = releaseDateStr ? new Date(releaseDateStr).getTime() : NaN;
+      const isUpcoming = !releaseDateStr || isNaN(releaseTime) || releaseTime > now;
+
+      const item: ActorCreditMovie = {
+        id: m.id,
+        title: m.title || m.original_title || 'Untitled',
+        original_title: m.original_title,
+        posterUrl: m.poster_path ? `${IMAGE_BASE_W780}${m.poster_path}` : undefined,
+        backdropUrl: m.backdrop_path ? `${IMAGE_BASE_ORIGINAL}${m.backdrop_path}` : undefined,
+        releaseDate: releaseDateStr || 'TBA (আসন্ন)',
+        releaseYear: releaseDateStr ? parseInt(releaseDateStr.split('-')[0], 10) : undefined,
+        character: m.character || '',
+        rating: m.vote_average ? Number(m.vote_average.toFixed(1)) : undefined,
+        overview: m.overview || '',
+        isUpcoming
+      };
+
+      if (isUpcoming) {
+        upcoming.push(item);
+      } else {
+        released.push(item);
+      }
+    }
+
+    // Sort upcoming: known future dates first, then TBA by rating
+    upcoming.sort((a, b) => {
+      if (a.releaseDate && b.releaseDate && a.releaseDate !== 'TBA (আসন্ন)' && b.releaseDate !== 'TBA (আসন্ন)') {
+        return new Date(a.releaseDate).getTime() - new Date(b.releaseDate).getTime();
+      }
+      return (b.rating || 0) - (a.rating || 0);
+    });
+
+    // Sort released: newest release year first
+    released.sort((a, b) => {
+      const yearA = a.releaseYear || 0;
+      const yearB = b.releaseYear || 0;
+      if (yearB !== yearA) return yearB - yearA;
+      return (b.rating || 0) - (a.rating || 0);
+    });
+
+    const fullDetails: ActorFullDetails = {
+      id: personId,
+      name,
+      originalName: personRes?.original_name,
+      profileUrl,
+      biography: personRes?.biography,
+      birthday: personRes?.birthday,
+      placeOfBirth: personRes?.place_of_birth,
+      knownForDepartment: personRes?.known_for_department || 'Acting',
+      upcomingMovies: upcoming,
+      releasedMovies: released,
+      totalCredits: seenMovieIds.size
+    };
+
+    actorDetailsCache.set(cacheKey, fullDetails);
+    if (personId) {
+      actorDetailsCache.set(`id-${personId}`, fullDetails);
+    }
+    if (name) {
+      actorDetailsCache.set(`name-${name.trim().toLowerCase()}`, fullDetails);
+    }
+
+    return fullDetails;
+  } catch (err) {
+    console.error('Error fetching actor details from TMDB:', err);
+    return null;
+  }
+}
+
